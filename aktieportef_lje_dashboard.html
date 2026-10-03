@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="da" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portefølje Dashboard</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#10b981',
+              600: '#059669',
+            },
+            dark: {
+              900: '#0c0e12',
+              850: '#12161f',
+              800: '#171c26',
+              700: '#222938',
+              600: '#323c4e'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0d13;
+      color: #e2e8f0;
+    }
+    .mono-num {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #12161f;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2a3447;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3c4b66;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-[#0b0d13] text-slate-100 flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <header class="border-b border-dark-700 bg-dark-850/80 backdrop-blur sticky top-0 z-30 px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-950/40">
+          <i data-lucide="trending-up" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg text-white tracking-tight">Portefølje Dashboard</h1>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">LIVE DATA</span>
+          </div>
+          <p class="text-xs text-slate-400">Konto 1 & Konto 2 samlet overblik</p>
+        </div>
+      </div>
+
+      <!-- Action buttons & Live FX rate preview -->
+      <div class="flex items-center flex-wrap gap-2.5">
+        <div class="hidden sm:flex items-center text-xs bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 space-x-3">
+          <span class="flex items-center gap-1.5 text-slate-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            USD/DKK: <b id="fxUsdHeader" class="text-slate-200 mono-num">6.643</b>
+          </span>
+          <span class="text-dark-600">|</span>
+          <span class="text-slate-400">EUR/DKK: <b id="fxEurHeader" class="text-slate-200 mono-num">7.467</b></span>
+        </div>
+
+        <button onclick="fetchLatestFX()" id="refreshBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 text-xs font-medium text-slate-200 transition-colors">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>Opdater valuta</span>
+        </button>
+
+        <button onclick="openModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-sm transition-all">
+          <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+          <span>Rediger kurser</span>
+        </button>
+
+        <button onclick="exportCSV()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 text-xs font-medium text-slate-300 transition-colors">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span class="hidden md:inline">Eksporter CSV</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+
+    <!-- KPI Summary Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Total Value -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-4 shadow-sm hover:border-dark-600 transition-colors">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Samlet Værdi (DKK)</span>
+          <span class="p-2 rounded-lg bg-dark-800 text-emerald-400"><i data-lucide="wallet" class="w-4 h-4"></i></span>
+        </div>
+        <div id="kpiTotalValue" class="text-2xl font-bold mono-num text-white">681.141 kr.</div>
+        <div class="mt-2 flex items-center text-xs text-slate-400 gap-1.5">
+          <span>Kostpris:</span>
+          <span id="kpiTotalCost" class="font-medium mono-num text-slate-300">515.264 kr.</span>
+        </div>
+      </div>
+
+      <!-- Total Return DKK & % -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-4 shadow-sm hover:border-dark-600 transition-colors">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Samlet Urealiseret Afkast</span>
+          <span id="kpiReturnBadgeIcon" class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="arrow-up-right" class="w-4 h-4"></i></span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <div id="kpiTotalGain" class="text-2xl font-bold mono-num text-emerald-400">+165.877 kr.</div>
+          <div id="kpiTotalGainPct" class="text-sm font-semibold mono-num px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">+32,19%</div>
+        </div>
+        <div class="mt-2 text-xs text-slate-400 flex items-center justify-between">
+          <span>Værdistigning over tid</span>
+          <span class="text-emerald-400 font-medium">Positivt</span>
+        </div>
+      </div>
+
+      <!-- Konto 1 Sub-summary -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-4 shadow-sm hover:border-dark-600 transition-colors">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Konto 1 (Depot)</span>
+          <span class="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">4 Positioner</span>
+        </div>
+        <div id="kpiKonto1Value" class="text-xl font-bold mono-num text-white">549.390 kr.</div>
+        <div class="mt-2 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Afkast:</span>
+          <span id="kpiKonto1Gain" class="text-emerald-400 font-semibold mono-num">+139.276 kr. (+33,96%)</span>
+        </div>
+      </div>
+
+      <!-- Konto 2 Sub-summary -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-4 shadow-sm hover:border-dark-600 transition-colors">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+          <span>Konto 2 (Aktiesparekonto/ETF)</span>
+          <span class="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">2 Positioner</span>
+        </div>
+        <div id="kpiKonto2Value" class="text-xl font-bold mono-num text-white">131.751 kr.</div>
+        <div class="mt-2 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Afkast:</span>
+          <span id="kpiKonto2Gain" class="text-emerald-400 font-semibold mono-num">+26.601 kr. (+25,30%)</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Chart 1: Asset Allocation (Doughnut) -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-400"></i>
+            Fordeling pr. Aktiv
+          </h2>
+          <span class="text-xs text-slate-400">Vægt %</span>
+        </div>
+        <div class="relative h-60 w-full flex items-center justify-center">
+          <canvas id="allocationChart"></canvas>
+        </div>
+        <div id="assetLegend" class="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-400 border-t border-dark-700/60 pt-3">
+          <!-- Dynamic legend injected via JS -->
+        </div>
+      </div>
+
+      <!-- Chart 2: Account Distribution -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i>
+            Fordeling pr. Konto
+          </h2>
+          <span class="text-xs text-slate-400">Konto 1 vs. 2</span>
+        </div>
+        <div class="relative h-60 w-full flex items-center justify-center">
+          <canvas id="accountChart"></canvas>
+        </div>
+        <div class="mt-4 flex items-center justify-around text-xs border-t border-dark-700/60 pt-3">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+            <span class="text-slate-300">Konto 1 (<span id="konto1Pct">80.7%</span>)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+            <span class="text-slate-300">Konto 2 (<span id="konto2Pct">19.3%</span>)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart 3: Gain/Loss Bar Chart -->
+      <div class="bg-dark-850 border border-dark-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-400"></i>
+            Afkast pr. Aktiv (DKK)
+          </h2>
+          <span class="text-xs text-slate-400">Gevinst / Tab</span>
+        </div>
+        <div class="relative h-64 w-full">
+          <canvas id="returnChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="bg-dark-850 border border-dark-700 rounded-2xl shadow-sm overflow-hidden">
+      
+      <!-- Table Filter Bar -->
+      <div class="p-4 border-b border-dark-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <!-- Tab selector -->
+        <div class="flex items-center bg-dark-800 p-1 rounded-xl border border-dark-700 w-full sm:w-auto">
+          <button onclick="setAccountFilter('all')" id="filter-all" class="filter-tab px-3.5 py-1.5 rounded-lg text-xs font-medium text-white bg-dark-700 transition-all">Alle konti</button>
+          <button onclick="setAccountFilter('Konto 1')" id="filter-Konto 1" class="filter-tab px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all">Konto 1</button>
+          <button onclick="setAccountFilter('Konto 2')" id="filter-Konto 2" class="filter-tab px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all">Konto 2</button>
+        </div>
+
+        <!-- Search input -->
+        <div class="relative w-full sm:w-64">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+          <input 
+            type="text" 
+            id="searchInput" 
+            oninput="renderTable()" 
+            placeholder="Søg i aktier eller fonde..." 
+            class="w-full bg-dark-800 border border-dark-700 rounded-xl pl-9 pr-4 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+          />
+        </div>
+      </div>
+
+      <!-- Holdings Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-dark-700 bg-dark-900/60 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+              <th class="py-3.5 px-4">Navn & Ticker</th>
+              <th class="py-3.5 px-3">Konto</th>
+              <th class="py-3.5 px-3 text-right">Antal</th>
+              <th class="py-3.5 px-3 text-right">GAK</th>
+              <th class="py-3.5 px-3 text-right">Seneste kurs</th>
+              <th class="py-3.5 px-3 text-right">Værdi (DKK)</th>
+              <th class="py-3.5 px-3 text-right">Vægt</th>
+              <th class="py-3.5 px-3 text-right">Afkast %</th>
+              <th class="py-3.5 px-4 text-right">Afkast (DKK)</th>
+            </tr>
+          </thead>
+          <tbody id="holdingsTableBody" class="divide-y divide-dark-700/60">
+            <!-- Dynamic rows will be inserted here -->
+          </tbody>
+          <tfoot class="border-t-2 border-dark-700 bg-dark-900/80 font-semibold text-slate-200">
+            <tr>
+              <td colspan="5" class="py-3.5 px-4 text-slate-300">Total for valgte visning</td>
+              <td id="tfootTotalValue" class="py-3.5 px-3 text-right mono-num text-white">681.141 kr.</td>
+              <td id="tfootTotalWeight" class="py-3.5 px-3 text-right mono-num text-slate-300">100.0%</td>
+              <td id="tfootTotalPct" class="py-3.5 px-3 text-right mono-num text-emerald-400">+32,19%</td>
+              <td id="tfootTotalGain" class="py-3.5 px-4 text-right mono-num text-emerald-400">+165.877 kr.</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <div id="priceModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-dark-850 border border-dark-700 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150">
+      <div class="p-5 border-b border-dark-700 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="edit-3" class="w-4 h-4 text-emerald-400"></i>
+            Juster Aktiekurser & Valuta
+          </h3>
+          <p class="text-xs text-slate-400">Rediger de seneste kurser manuelt for straks at genberegne hele porteføljen.</p>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-dark-700 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        <!-- FX Rates adjustment -->
+        <div class="bg-dark-800/80 p-4 rounded-xl border border-dark-700">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="globe" class="w-3.5 h-3.5 text-blue-400"></i>
+              Valutakurser mod DKK
+            </h4>
+            <button onclick="fetchLatestFX()" class="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-medium">Hent live valutakurser</button>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">USD / DKK</label>
+              <input type="number" step="0.001" id="modalFxUSD" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-white mono-num focus:border-emerald-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">EUR / DKK</label>
+              <input type="number" step="0.001" id="modalFxEUR" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-white mono-num focus:border-emerald-500 focus:outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- Individual stock prices -->
+        <div>
+          <h4 class="text-xs font-semibold text-slate-200 uppercase tracking-wider mb-3">Seneste Kurser</h4>
+          <div id="modalHoldingsInputs" class="space-y-3">
+            <!-- Dynamic inputs generated in JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-dark-700 bg-dark-900/50 flex justify-end gap-2.5">
+        <button onclick="resetToInitialData()" class="px-3.5 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition">Nulstil til billeddata</button>
+        <button onclick="saveModalChanges()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition">Gem & Genberegn</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast message container -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-2 bg-dark-800 text-slate-100 border border-dark-600 text-xs px-4 py-2.5 rounded-xl shadow-xl">
+    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toastMsg">Opdateret</span>
+  </div>
+
+  <script>
+    // Initial dataset perfectly extracted from screenshot 1 and 2
+    const initialHoldings = [
+      {
+        id: 1,
+        name: "Danske Inv Global Indeks, kl DKK d",
+        ticker: "DK0010263158",
+        account: "Konto 1",
+        currency: "DKK",
+        shares: 1239,
+        gak: 114.43,
+        currentPrice: 191.95,
+        type: "Indeksfond"
+      },
+      {
+        id: 2,
+        name: "Danske Invest Danmark Indeks KL DKK d",
+        ticker: "DK0010202289",
+        account: "Konto 1",
+        currency: "DKK",
+        shares: 1142,
+        gak: 180.41,
+        currentPrice: 170.45,
+        type: "Indeksfond"
+      },
+      {
+        id: 3,
+        name: "Novo Nordisk B",
+        ticker: "NOVO-B.CO",
+        account: "Konto 1",
+        currency: "DKK",
+        shares: 78,
+        gak: 336.88,
+        currentPrice: 248.75,
+        type: "Aktie"
+      },
+      {
+        id: 4,
+        name: "Apple",
+        ticker: "AAPL",
+        account: "Konto 1",
+        currency: "USD",
+        shares: 44,
+        gak: 129.76,
+        currentPrice: 333.79,
+        type: "Aktie"
+      },
+      {
+        id: 5,
+        name: "iShares Core S&P 500 ETF USD Acc",
+        ticker: "SXR8.DE",
+        account: "Konto 2",
+        currency: "EUR",
+        shares: 13,
+        gak: 571.05,
+        currentPrice: 739.48,
+        type: "ETF"
+      },
+      {
+        id: 6,
+        name: "iShares Core MSCI Europe UCITS ETF EUR (Acc)",
+        ticker: "IMAE.AS",
+        account: "Konto 2",
+        currency: "EUR",
+        shares: 78,
+        gak: 85.04,
+        currentPrice: 102.74,
+        type: "ETF"
+      }
+    ];
+
+    // FX rates state: calibrated from Apple (97.508 DKK / (44 * 333.79 USD) = ~6.639) and SXR8 (71.853 DKK / (13 * 739.48 EUR) = ~7.474)
+    let fxRates = {
+      DKK: 1.0,
+      USD: 6.63916,
+      EUR: 7.47444
+    };
+
+    // Deep clone initial dataset
+    let holdings = JSON.parse(JSON.stringify(initialHoldings));
+    let activeFilter = 'all';
+
+    // Chart.js references
+    let allocationChartInstance = null;
+    let accountChartInstance = null;
+    let returnChartInstance = null;
+
+    // Formatters
+    const formatDKK = (num) => {
+      return new Intl.NumberFormat('da-DK', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(Math.round(num)) + ' kr.';
+    };
+
+    const formatDecimal = (num, decimals = 2) => {
+      return new Intl.NumberFormat('da-DK', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      }).format(num);
+    };
+
+    function calculateMetrics(item) {
+      const fx = fxRates[item.currency] || 1;
+      const valueLocal = item.shares * item.currentPrice;
+      const valueDKK = valueLocal * fx;
+      const costDKK = item.shares * item.gak * fx;
+      const gainDKK = valueDKK - costDKK;
+      const gainPct = item.gak > 0 ? ((item.currentPrice - item.gak) / item.gak) * 100 : 0;
+
+      return {
+        ...item,
+        valueDKK,
+        costDKK,
+        gainDKK,
+        gainPct,
+        fx
+      };
+    }
+
+    function getEnrichedHoldings() {
+      return holdings.map(calculateMetrics);
+    }
+
+    function updateDashboard() {
+      const enriched = getEnrichedHoldings();
+      const totalPortfolioValue = enriched.reduce((sum, h) => sum + h.valueDKK, 0);
+      const totalPortfolioCost = enriched.reduce((sum, h) => sum + h.costDKK, 0);
+      const totalGain = totalPortfolioValue - totalPortfolioCost;
+      const totalGainPct = totalPortfolioCost > 0 ? (totalGain / totalPortfolioCost) * 100 : 0;
+
+      // Update KPI Header
+      document.getElementById('kpiTotalValue').textContent = formatDKK(totalPortfolioValue);
+      document.getElementById('kpiTotalCost').textContent = formatDKK(totalPortfolioCost);
+      
+      const gainElem = document.getElementById('kpiTotalGain');
+      const gainPctElem = document.getElementById('kpiTotalGainPct');
+      const isPositive = totalGain >= 0;
+
+      gainElem.textContent = (isPositive ? '+' : '') + formatDKK(totalGain);
+      gainElem.className = `text-2xl font-bold mono-num ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`;
+      
+      gainPctElem.textContent = (isPositive ? '+' : '') + formatDecimal(totalGainPct) + '%';
+      gainPctElem.className = `text-sm font-semibold mono-num px-2 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`;
+
+      // Update Account 1 & 2 summaries
+      const k1 = enriched.filter(h => h.account === 'Konto 1');
+      const k1Val = k1.reduce((sum, h) => sum + h.valueDKK, 0);
+      const k1Cost = k1.reduce((sum, h) => sum + h.costDKK, 0);
+      const k1Gain = k1Val - k1Cost;
+      const k1GainPct = k1Cost > 0 ? (k1Gain / k1Cost) * 100 : 0;
+
+      document.getElementById('kpiKonto1Value').textContent = formatDKK(k1Val);
+      document.getElementById('kpiKonto1Gain').innerHTML = `
+        <span class="${k1Gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+          ${k1Gain >= 0 ? '+' : ''}${formatDKK(k1Gain)} (${k1GainPct >= 0 ? '+' : ''}${formatDecimal(k1GainPct)}%)
+        </span>
+      `;
+
+      const k2 = enriched.filter(h => h.account === 'Konto 2');
+      const k2Val = k2.reduce((sum, h) => sum + h.valueDKK, 0);
+      const k2Cost = k2.reduce((sum, h) => sum + h.costDKK, 0);
+      const k2Gain = k2Val - k2Cost;
+      const k2GainPct = k2Cost > 0 ? (k2Gain / k2Cost) * 100 : 0;
+
+      document.getElementById('kpiKonto2Value').textContent = formatDKK(k2Val);
+      document.getElementById('kpiKonto2Gain').innerHTML = `
+        <span class="${k2Gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+          ${k2Gain >= 0 ? '+' : ''}${formatDKK(k2Gain)} (${k2GainPct >= 0 ? '+' : ''}${formatDecimal(k2GainPct)}%)
+        </span>
+      `;
+
+      // Update Account Distribution Pct
+      const k1Pct = totalPortfolioValue > 0 ? (k1Val / totalPortfolioValue) * 100 : 0;
+      const k2Pct = totalPortfolioValue > 0 ? (k2Val / totalPortfolioValue) * 100 : 0;
+      document.getElementById('konto1Pct').textContent = formatDecimal(k1Pct, 1) + '%';
+      document.getElementById('konto2Pct').textContent = formatDecimal(k2Pct, 1) + '%';
+
+      // Header FX rates
+      document.getElementById('fxUsdHeader').textContent = formatDecimal(fxRates.USD, 3);
+      document.getElementById('fxEurHeader').textContent = formatDecimal(fxRates.EUR, 3);
+
+      renderTable();
+      renderCharts(enriched, totalPortfolioValue, k1Val, k2Val);
+    }
+
+    function renderTable() {
+      const enriched = getEnrichedHoldings();
+      const searchQuery = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      const totalPortfolioValue = enriched.reduce((sum, h) => sum + h.valueDKK, 0);
+
+      // Filtering
+      let filtered = enriched.filter(item => {
+        const matchesAccount = (activeFilter === 'all') || (item.account === activeFilter);
+        const matchesSearch = item.name.toLowerCase().includes(searchQuery) || item.ticker.toLowerCase().includes(searchQuery);
+        return matchesAccount && matchesSearch;
+      });
+
+      const tbody = document.getElementById('holdingsTableBody');
+      tbody.innerHTML = '';
+
+      let filterTotalValue = 0;
+      let filterTotalCost = 0;
+
+      filtered.forEach(item => {
+        filterTotalValue += item.valueDKK;
+        filterTotalCost += item.costDKK;
+        const weightPct = totalPortfolioValue > 0 ? (item.valueDKK / totalPortfolioValue) * 100 : 0;
+        const isPos = item.gainDKK >= 0;
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-dark-800/60 transition-colors group";
+        tr.innerHTML = `
+          <td class="py-3.5 px-4 font-medium text-slate-200">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-dark-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
+                ${item.currency}
+              </div>
+              <div>
+                <div class="font-semibold text-white group-hover:text-emerald-400 transition-colors">${item.name}</div>
+                <div class="text-[11px] text-slate-400 mono-num">${item.ticker}</div>
+              </div>
+            </div>
+          </td>
+          <td class="py-3.5 px-3">
+            <span class="px-2 py-0.5 rounded text-[11px] font-medium ${item.account === 'Konto 1' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'}">
+              ${item.account}
+            </span>
+          </td>
+          <td class="py-3.5 px-3 text-right mono-num text-slate-200">${formatDecimal(item.shares, item.shares % 1 === 0 ? 0 : 2)}</td>
+          <td class="py-3.5 px-3 text-right mono-num text-slate-300">${formatDecimal(item.gak, 2)} <span class="text-[10px] text-slate-400">${item.currency}</span></td>
+          <td class="py-3.5 px-3 text-right mono-num font-semibold text-white">${formatDecimal(item.currentPrice, 2)} <span class="text-[10px] text-slate-400">${item.currency}</span></td>
+          <td class="py-3.5 px-3 text-right mono-num font-bold text-white">${formatDKK(item.valueDKK)}</td>
+          <td class="py-3.5 px-3 text-right mono-num text-slate-400">${formatDecimal(weightPct, 1)}%</td>
+          <td class="py-3.5 px-3 text-right mono-num font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">
+            ${isPos ? '+' : ''}${formatDecimal(item.gainPct, 2)}%
+          </td>
+          <td class="py-3.5 px-4 text-right mono-num font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">
+            ${isPos ? '+' : ''}${formatDKK(item.gainDKK)}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Update Table Footer
+      const filterGain = filterTotalValue - filterTotalCost;
+      const filterGainPct = filterTotalCost > 0 ? (filterGain / filterTotalCost) * 100 : 0;
+      const filterWeightTotal = totalPortfolioValue > 0 ? (filterTotalValue / totalPortfolioValue) * 100 : 0;
+
+      document.getElementById('tfootTotalValue').textContent = formatDKK(filterTotalValue);
+      document.getElementById('tfootTotalWeight').textContent = formatDecimal(filterWeightTotal, 1) + '%';
+      
+      const tfootGain = document.getElementById('tfootTotalGain');
+      const tfootPct = document.getElementById('tfootTotalPct');
+      const isFootPos = filterGain >= 0;
+
+      tfootGain.textContent = (isFootPos ? '+' : '') + formatDKK(filterGain);
+      tfootGain.className = `py-3.5 px-4 text-right mono-num font-semibold ${isFootPos ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      tfootPct.textContent = (isFootPos ? '+' : '') + formatDecimal(filterGainPct, 2) + '%';
+      tfootPct.className = `py-3.5 px-3 text-right mono-num ${isFootPos ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      lucide.createIcons();
+    }
+
+    const chartPalette = [
+      '#10b981', // Emerald
+      '#3b82f6', // Blue
+      '#8b5cf6', // Violet
+      '#f59e0b', // Amber
+      '#ec4899', // Pink
+      '#06b6d4', // Cyan
+    ];
+
+    function renderCharts(enriched, totalValue, k1Val, k2Val) {
+      // 1. Asset Allocation Chart
+      const assetLabels = enriched.map(h => h.name.length > 22 ? h.name.substring(0, 20) + '...' : h.name);
+      const assetValues = enriched.map(h => Math.round(h.valueDKK));
+
+      const ctxAlloc = document.getElementById('allocationChart').getContext('2d');
+      if (allocationChartInstance) allocationChartInstance.destroy();
+
+      allocationChartInstance = new Chart(ctxAlloc, {
+        type: 'doughnut',
+        data: {
+          labels: assetLabels,
+          datasets: [{
+            data: assetValues,
+            backgroundColor: chartPalette,
+            borderWidth: 2,
+            borderColor: '#12161f',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '72%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw || 0;
+                  const pct = totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : 0;
+                  return ` ${context.label}: ${formatDKK(val)} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Populate custom legend
+      const legendDiv = document.getElementById('assetLegend');
+      legendDiv.innerHTML = enriched.map((h, i) => `
+        <div class="flex items-center gap-1.5 truncate">
+          <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background-color: ${chartPalette[i % chartPalette.length]}"></span>
+          <span class="truncate" title="${h.name}">${h.name}</span>
+        </div>
+      `).join('');
+
+      // 2. Account Distribution Chart
+      const ctxAccount = document.getElementById('accountChart').getContext('2d');
+      if (accountChartInstance) accountChartInstance.destroy();
+
+      accountChartInstance = new Chart(ctxAccount, {
+        type: 'doughnut',
+        data: {
+          labels: ['Konto 1', 'Konto 2'],
+          datasets: [{
+            data: [Math.round(k1Val), Math.round(k2Val)],
+            backgroundColor: ['#3b82f6', '#a855f7'],
+            borderWidth: 2,
+            borderColor: '#12161f',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '75%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw || 0;
+                  const pct = totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : 0;
+                  return ` ${context.label}: ${formatDKK(val)} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // 3. Gain/Loss Bar Chart
+      const ctxReturn = document.getElementById('returnChart').getContext('2d');
+      if (returnChartInstance) returnChartInstance.destroy();
+
+      const returnLabels = enriched.map(h => {
+        if (h.name.includes('Global')) return 'Danske Global';
+        if (h.name.includes('Danmark')) return 'Danske DK';
+        if (h.name.includes('Novo')) return 'Novo Nordisk';
+        if (h.name.includes('Apple')) return 'Apple';
+        if (h.name.includes('S&P 500')) return 'S&P 500 ETF';
+        if (h.name.includes('Europe')) return 'Europe ETF';
+        return h.name.slice(0, 12);
+      });
+
+      const returnValues = enriched.map(h => Math.round(h.gainDKK));
+      const barColors = returnValues.map(v => v >= 0 ? '#10b981' : '#f43f5e');
+
+      returnChartInstance = new Chart(ctxReturn, {
+        type: 'bar',
+        data: {
+          labels: returnLabels,
+          datasets: [{
+            data: returnValues,
+            backgroundColor: barColors,
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ` Afkast: ${context.raw >= 0 ? '+' : ''}${formatDKK(context.raw)}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { size: 10 } }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { size: 10 },
+                callback: function(val) {
+                  return (val / 1000) + 'k';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function setAccountFilter(account) {
+      activeFilter = account;
+      document.querySelectorAll('.filter-tab').forEach(btn => {
+        btn.classList.remove('bg-dark-700', 'text-white');
+        btn.classList.add('text-slate-400');
+      });
+
+      const selected = document.getElementById(`filter-${account}`);
+      if (selected) {
+        selected.classList.add('bg-dark-700', 'text-white');
+        selected.classList.remove('text-slate-400');
+      }
+      renderTable();
+    }
+
+    function openModal() {
+      document.getElementById('modalFxUSD').value = fxRates.USD.toFixed(4);
+      document.getElementById('modalFxEUR').value = fxRates.EUR.toFixed(4);
+
+      const container = document.getElementById('modalHoldingsInputs');
+      container.innerHTML = holdings.map(h => `
+        <div class="flex items-center justify-between gap-3 bg-dark-900/60 p-2.5 rounded-xl border border-dark-700">
+          <div class="w-1/2">
+            <div class="text-xs font-semibold text-slate-200 truncate">${h.name}</div>
+            <div class="text-[10px] text-slate-400">${h.account} • ${h.shares} stk. à GAK ${h.gak} ${h.currency}</div>
+          </div>
+          <div class="w-1/2 flex items-center gap-2 justify-end">
+            <label class="text-[11px] text-slate-400 font-mono">Kurs (${h.currency}):</label>
+            <input 
+              type="number" 
+              step="0.01" 
+              id="price_input_${h.id}" 
+              value="${h.currentPrice}" 
+              class="w-28 bg-dark-800 border border-dark-600 rounded-lg px-2.5 py-1 text-xs text-white mono-num text-right focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('priceModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('priceModal').classList.add('hidden');
+    }
+
+    function saveModalChanges() {
+      const newUsd = parseFloat(document.getElementById('modalFxUSD').value);
+      const newEur = parseFloat(document.getElementById('modalFxEUR').value);
+
+      if (!isNaN(newUsd) && newUsd > 0) fxRates.USD = newUsd;
+      if (!isNaN(newEur) && newEur > 0) fxRates.EUR = newEur;
+
+      holdings.forEach(h => {
+        const input = document.getElementById(`price_input_${h.id}`);
+        if (input) {
+          const val = parseFloat(input.value);
+          if (!isNaN(val) && val >= 0) {
+            h.currentPrice = val;
+          }
+        }
+      });
+
+      closeModal();
+      updateDashboard();
+      showToast('Kurser og valutakurser er opdateret og genberegnet!');
+    }
+
+    function resetToInitialData() {
+      holdings = JSON.parse(JSON.stringify(initialHoldings));
+      fxRates = { DKK: 1.0, USD: 6.63916, EUR: 7.47444 };
+      closeModal();
+      updateDashboard();
+      showToast('Nulstillet til startpositioner');
+    }
+
+    async function fetchLatestFX() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      const originalText = refreshBtn.innerHTML;
+      refreshBtn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Henter...</span>`;
+      lucide.createIcons();
+
+      try {
+        // Free and open rate provider
+        const res = await fetch('https://open.er-api.com/v6/latest/DKK');
+        if (!res.ok) throw new Error('Netværksfejl ved hentning af kurser');
+        const data = await res.json();
+
+        if (data && data.rates) {
+          // Rates relative to DKK: 1 USD = (1 / rates['USD']) DKK
+          if (data.rates.USD) fxRates.USD = +(1 / data.rates.USD).toFixed(4);
+          if (data.rates.EUR) fxRates.EUR = +(1 / data.rates.EUR).toFixed(4);
+
+          updateDashboard();
+          showToast(`Valutakurser opdateret! (USD: ${fxRates.USD}, EUR: ${fxRates.EUR})`);
+        }
+      } catch (err) {
+        console.warn('Kunne ikke hente live kurser, bevarer kalibrerede standardkurser', err);
+        showToast('Kunne ikke hente live valutakurser. Tjek internetforbindelsen.');
+      } finally {
+        refreshBtn.innerHTML = originalText;
+        lucide.createIcons();
+      }
+    }
+
+    function exportCSV() {
+      const enriched = getEnrichedHoldings();
+      const headers = ["Konto", "Navn", "Ticker", "Valuta", "Antal", "GAK", "Aktuel Kurs", "Værdi DKK", "Afkast DKK", "Afkast %"];
+      
+      const rows = enriched.map(h => [
+        `"${h.account}"`,
+        `"${h.name}"`,
+        `"${h.ticker}"`,
+        `"${h.currency}"`,
+        h.shares,
+        h.gak,
+        h.currentPrice,
+        Math.round(h.valueDKK),
+        Math.round(h.gainDKK),
+        h.gainPct.toFixed(2) + "%"
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `portefolje_oversigt_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast("Portefølje eksporteret til CSV!");
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.textContent = message;
+      toast.classList.remove('opacity-0', 'translate-y-20');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-20');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 3200);
+    }
+
+    // Initialize application on load
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      updateDashboard();
+    });
+  </script>
+</body>
+</html>
